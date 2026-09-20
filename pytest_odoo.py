@@ -123,7 +123,11 @@ def load_http(request, load_registry):
             from odoo import http
             from odoo.service import server
             server.load_server_wide_modules()
-            server.server = server.ThreadedServer(http.root)
+            if odoo.release.version_info >= (20,):
+                from odoo.http.router import root as http_root
+            else:
+                from odoo.http import root as http_root
+            server.server = server.ThreadedServer(http_root)
             server.server.start(stop=False)
             signal.signal(signal.SIGINT, signal.default_int_handler)
             yield
