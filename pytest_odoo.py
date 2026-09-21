@@ -11,6 +11,7 @@ import signal
 import subprocess
 import threading
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from typing import Optional
 from unittest import TestCase as UnitTestTestCase, case as UnitTestCase
@@ -88,7 +89,11 @@ def pytest_cmdline_main(config):
             if os.environ.get(arg):
                 options.append('--db_%s=%s' % (arg.lower(), os.environ.get(arg)))
 
-        odoo.tools.config.parse_config(options)
+        parse_config = partial(odoo.tools.config.parse_config, options)
+        if odoo.release.version_info >= (20,):
+            parse_config = partial(parse_config, setup_logging=True)
+
+        parse_config()
 
         if not odoo.tools.config['db_name']:
             # if you fall here, it means you have ODOO_RC or OPENERP_SERVER pointing
