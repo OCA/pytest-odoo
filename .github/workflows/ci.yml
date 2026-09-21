@@ -73,6 +73,12 @@ jobs:
           - python: "3.14"
             tox_env: "py314-odoo19"
 
+          # Odoo 20
+          - python: "3.13"
+            tox_env: "py313-odoo20"
+          - python: "3.14"
+            tox_env: "py314-odoo20"
+
           # Unit Tests
           - python: "3.8"
             tox_env: "py38-unit"
