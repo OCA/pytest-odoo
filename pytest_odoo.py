@@ -53,6 +53,11 @@ def pytest_addoption(parser):
     parser.addoption("--odoo-skip-at-install",
                      action="store_true",
                      help="If pytest should skip tests marked with at_install.")
+    parser.addoption(
+        "--odoo-db-use-env-vars",
+        action="store_true",
+        help="If HOST, PORT, USER and PASSWORD environment variables should be used.",
+    )
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -85,9 +90,15 @@ def pytest_cmdline_main(config):
 
         # Check the environment variables supported by the Odoo Docker image
         # ref: https://hub.docker.com/_/odoo
-        for arg in ['HOST', 'PORT', 'USER', 'PASSWORD']:
-            if os.environ.get(arg):
-                options.append('--db_%s=%s' % (arg.lower(), os.environ.get(arg)))
+        use_env: str | None = (
+            os.environ.get("PYTEST_DB_USE_ENV_VARS").lowercase()
+            if os.environ.get("PYTEST_DB_USE_ENV_VARS")
+            else None
+        )
+        if config.getoption("--odoo-db-use-env-vars") or use_env == "true":
+            for arg in ["HOST", "PORT", "USER", "PASSWORD"]:
+                if os.environ.get(arg):
+                    options.append("--db_%s=%s" % (arg.lower(), os.environ.get(arg)))
 
         parse_config = partial(odoo.tools.config.parse_config, options)
         if odoo.release.version_info >= (20,):

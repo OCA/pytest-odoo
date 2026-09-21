@@ -36,10 +36,9 @@ The custom options are:
 * ``--odoo-config``: path of the odoo.cfg file to use.
 * ``--odoo-http``: Allow to launch the Odoo http instance
 * ``--odoo-skip-at-install``: use to skip tests that are decorated with `@tagged("at_install")` (*Note*: this is not the default behavior because Odoo set this tag by default if not defined).
+* ``--odoo-db-use-env-vars``: use environment variables. Using environment variables can also be achieved by setting the environment variable ``PYTEST_DB_USE_ENV_VARS`` to ``true``.
 
-
-Alternatively, you can use environment variables, like the Odoo Docker image:
-
+When using environment variables, they are the same as the Odoo Docker image:
 * ``HOST``: hostname of the database server
 * ``PORT``: port of the database server
 * ``USER``: username to access the database
