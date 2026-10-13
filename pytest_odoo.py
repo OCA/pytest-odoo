@@ -79,7 +79,10 @@ def pytest_cmdline_main(config):
             '--odoo-addons-path',
         ]
         for option in available_options:
-            value = config.getoption(option)
+            value = config.getoption(
+                option,
+                os.environ.get('PYTEST_%s' % option[2:].replace('-', '_').upper(), None)
+            )
             if value:
                 odoo_arg = '--%s' % option[7:]
                 options.append('%s=%s' % (odoo_arg, value))
@@ -92,7 +95,7 @@ def pytest_cmdline_main(config):
         # ref: https://hub.docker.com/_/odoo
         use_env: str | None = (
             os.environ.get("PYTEST_DB_USE_ENV_VARS").lowercase()
-            if os.environ.get("PYTEST_DB_USE_ENV_VARS")
+            if "PYTEST_DB_USE_ENV_VARS" in os.environ
             else None
         )
         if config.getoption("--odoo-db-use-env-vars") or use_env == "true":

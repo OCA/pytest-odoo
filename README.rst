@@ -32,11 +32,18 @@ usage::
 The custom options are:
 
 * ``--odoo-database``: name of the database to test.
+  Can also be set by using the environment variable `PYTEST_ODOO_DATABASE`.
 * ``--odoo-log-level``: log level as expected by odoo. As time of writing: info, debug_rpc, warn, test, critical, debug_sql, error, debug, debug_rpc_answer. The default is critical to have a clean output.
+  Can also be set by using the environment variable `PYTEST_ODOO_LOG_LEVEL`.
 * ``--odoo-config``: path of the odoo.cfg file to use.
+  Can also be set by using the environment variable `PYTEST_ODOO_CONFIG`, or the usual `ODOO_RC` environment variable (see bellow).
 * ``--odoo-http``: Allow to launch the Odoo http instance
 * ``--odoo-skip-at-install``: use to skip tests that are decorated with `@tagged("at_install")` (*Note*: this is not the default behavior because Odoo set this tag by default if not defined).
 * ``--odoo-db-use-env-vars``: use environment variables. Using environment variables can also be achieved by setting the environment variable ``PYTEST_DB_USE_ENV_VARS`` to ``true``.
+* ``--odoo-dev``: Dev options.
+  Can also be set by using the environment variable `PYTEST_ODOO_DEV`.
+* ``--odoo-addons-path``: Addons path.
+  Can also be set by using the environment variable `PYTEST_ODOO_ADDONS_PATH`.
 
 When using environment variables, they are the same as the Odoo Docker image:
 * ``HOST``: hostname of the database server
