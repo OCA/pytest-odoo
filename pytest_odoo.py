@@ -10,7 +10,7 @@ import socket
 import signal
 import subprocess
 import threading
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from functools import partial
 from pathlib import Path
 from typing import Optional
@@ -60,14 +60,20 @@ def pytest_addoption(parser):
     )
 
 
+def _is_odoo_configured(config):
+    return bool(
+        config.getoption('--odoo-database')
+        or config.getoption('--odoo-config')
+        or config.getoption('--odoo-dev')
+        or os.environ.get('OPENERP_SERVER')
+        or os.environ.get('ODOO_RC')
+    )
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_cmdline_main(config):
 
-    if (config.getoption('--odoo-database')
-            or config.getoption('--odoo-config')
-            or config.getoption('--odoo-dev')
-            or os.environ.get('OPENERP_SERVER')
-            or os.environ.get('ODOO_RC')):
+    if _is_odoo_configured(config):
         options = []
         # Replace --odoo-<something> by --<something> and prepare the argument
         # to propagate to odoo.
@@ -132,7 +138,7 @@ def _get_available_random_port():
         return s.getsockname()[1]
 
 @pytest.fixture(scope="session" if release.version_info >= (15,0) else "module", autouse=True)
-def load_http(request, load_registry):
+def load_http(request):
     if request.config.getoption("--odoo-http"):
         odoo.tools.config['http_port'] = _get_available_random_port()
         if odoo.release.version_info >= (15,):
@@ -195,20 +201,38 @@ def _worker_db_name():
             odoo.tools.config["dbfilter"] = f"^{original_db_name}$"
 
 
-@pytest.fixture(scope='session', autouse=True)
-def load_registry():
-    # Initialize the registry before running tests.
-    # If we don't do that, the modules will be loaded *inside* of the first
-    # test we run, which would trigger the launch of the postinstall tests
-    # (because we force 'test_enable' to True and the at end of the loading of
-    # the registry, the postinstall tests are run when test_enable is enabled).
-    # And also give wrong timing indications.
-    # Finally we enable `testing` flag on current thread
-    # since Odoo sets it when loading test suites.
+def _init_registry(session):
+    """Load the Odoo registry before pytest collects test modules.
+
+    Loading during pytest_collection ensures Odoo addons are imported in
+    dependency order and their post_load hooks are executed before test files
+    import them, while test_enable is still False (so Odoo does not trigger
+    its own post-install test suite).
+    """
+    # Odoo sets `testing` on the current thread when running test suites.
     threading.current_thread().testing = True
-    with _worker_db_name() as db_name:
-        odoo.modules.registry.Registry(db_name)
-        yield
+    stack = ExitStack()
+    session._odoo_registry_stack = stack
+    db_name = stack.enter_context(_worker_db_name())
+    odoo.modules.registry.Registry(db_name)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection(session):
+    # Skip on xdist controller (dsession) so it does not open a connection to
+    # the template database before workers clone it.
+    if (
+        _is_odoo_configured(session.config)
+        and not session.config.pluginmanager.hasplugin("dsession")
+    ):
+        _init_registry(session)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    stack = getattr(session, "_odoo_registry_stack", None)
+    if stack is not None:
+        stack.close()
+        del session._odoo_registry_stack
 
 
 @pytest.fixture(scope='module', autouse=True)

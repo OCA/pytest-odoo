@@ -2,13 +2,16 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from _pytest import pathlib as pytest_pathlib
 from pytest_odoo import (
     _find_manifest_path,
+    _is_odoo_configured,
     disable_odoo_test_retry,
     monkey_patch_resolve_pkg_root_and_module_name,
+    pytest_collection,
+    pytest_sessionfinish,
     support_subtest,
 )
 
@@ -165,3 +168,53 @@ class TestPytestOdoo(TestCase):
 
         del case.TestCase
         support_subtest()
+
+    def test_is_odoo_configured(self):
+        config = MagicMock()
+        config.getoption.return_value = None
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(_is_odoo_configured(config))
+        with patch.dict("os.environ", {"ODOO_RC": "/tmp/odoo.conf"}, clear=True):
+            self.assertTrue(_is_odoo_configured(config))
+        config.getoption.side_effect = lambda opt: "db" if opt == "--odoo-database" else None
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertTrue(_is_odoo_configured(config))
+
+    def test_pytest_collection_initializes_and_sessionfinish_cleans_up(self):
+        session = MagicMock(spec=[])
+        session.config = MagicMock()
+        session.config.getoption.side_effect = (
+            lambda opt: "mydb" if opt == "--odoo-database" else None
+        )
+        session.config.pluginmanager.hasplugin.return_value = False
+        cleaned = []
+
+        @contextmanager
+        def fake_worker_db():
+            try:
+                yield "mydb"
+            finally:
+                cleaned.append(True)
+
+        with patch("pytest_odoo._worker_db_name", fake_worker_db), patch(
+            "pytest_odoo.odoo.modules.registry.Registry"
+        ) as registry_cls:
+            self.assertIsNone(pytest_collection(session))
+            registry_cls.assert_called_once_with("mydb")
+            self.assertEqual(cleaned, [])
+
+            pytest_sessionfinish(session, 0)
+            self.assertEqual(cleaned, [True])
+            self.assertFalse(hasattr(session, "_odoo_registry_stack"))
+
+    def test_pytest_collection_skips_xdist_controller(self):
+        session = MagicMock(spec=[])
+        session.config = MagicMock()
+        session.config.getoption.side_effect = (
+            lambda opt: "mydb" if opt == "--odoo-database" else None
+        )
+        session.config.pluginmanager.hasplugin.return_value = True
+
+        with patch("pytest_odoo._init_registry") as init_registry:
+            self.assertIsNone(pytest_collection(session))
+            init_registry.assert_not_called()
